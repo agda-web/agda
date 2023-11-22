@@ -61,6 +61,7 @@ import qualified Data.Text as T
 import System.Directory
 import System.FilePath
 import System.Environment
+import System.PosixCompat.Files ( FileStatus, getFileStatus, fileID, deviceID )
 
 import Agda.Interaction.Library.Base
 import Agda.Interaction.Library.Parse
@@ -212,6 +213,7 @@ findProjectConfig' root = do
           let conf = ProjectConfig root files 0
           storeCachedProjectConfig root conf
           return conf
+      `catchIO` (\ e -> do return DefaultProjectConfig)
 
   where
     -- Note that "going up" one directory is OS dependent
@@ -230,8 +232,15 @@ findProjectConfig' root = do
     upPath :: FilePath -> IO (Maybe FilePath)
     upPath root = do
       up <- canonicalizePath $ root </> ".."
-      if up == root then return Nothing else return $ Just up
-
+      if up == root then return Nothing
+      else do
+        -- it is a little bit dumb to ask for status again
+        stat   <- getFileStatus root
+        statUp <- getFileStatus up
+        let dev = deviceID stat
+        let ino = fileID stat
+        if deviceID statUp == dev && fileID statUp == ino then
+          return Nothing else return $ Just up
 
 -- | Get project root
 

@@ -9,8 +9,6 @@
 
 module Agda.VersionCommit where
 
-import Development.GitRev
-
 import Agda.Version
 
 versionWithCommitInfo :: String
@@ -20,13 +18,13 @@ versionWithCommitInfo = version ++ maybe "" ("-" ++) commitInfo
 commitInfo :: Maybe String
 commitInfo
   | hash == "UNKNOWN" = Nothing
-  | otherwise         = Just $ abbrev hash ++ dirty
+  | otherwise         = Just $ abbrev hash ++ "-dirty"
   where
-    hash = $(gitHash)
+    hash = "9cf3dcf0290e2286404b768ff54420e3463b3382"
 
     -- Check if any tracked files have uncommitted changes
-    dirty | $(gitDirtyTracked) = "-dirty"
-          | otherwise          = ""
+    --dirty | $(gitDirtyTracked) = "-dirty"
+    --      | otherwise          = ""
 
     -- Abbreviate a commit hash while keeping it unambiguous
     abbrev = take 7
