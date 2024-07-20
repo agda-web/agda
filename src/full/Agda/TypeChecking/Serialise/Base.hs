@@ -5,6 +5,8 @@
 {-# LANGUAGE MagicHash            #-}
 {-# LANGUAGE UnboxedTuples        #-}
 
+#include "MachDeps.h"
+
 {-
 András, 2023-10-2:
 
@@ -58,6 +60,17 @@ import Agda.Utils.TypeLevel
 -- | Constructor tag (maybe omitted) and argument indices.
 data Node = Empty | Cons !Int32 !Node deriving Eq
 
+ahashFoldMagic :: Word
+ahashSalt :: Int
+
+#if (WORD_SIZE_IN_BITS == 32)
+ahashFoldMagic = 2654435741
+ahashSalt = 1627380737
+#else
+ahashFoldMagic = 11400714819323198549
+ahashSalt = 3032525626373534813
+#endif
+
 instance Hashable Node where
   -- Adapted from https://github.com/tkaitchuck/aHash/wiki/AHash-fallback-algorithm
   hashWithSalt h n = fromIntegral (go (fromIntegral h) n) where
@@ -67,13 +80,13 @@ instance Hashable Node where
     foldedMul (W# x) (W# y) = case timesWord2# x y of (# hi, lo #) -> W# (xor# hi lo)
 
     combine :: Word -> Word -> Word
-    combine x y = foldedMul (xor x y) 11400714819323198549
+    combine x y = foldedMul (xor x y) ahashFoldMagic
 
     go :: Word -> Node -> Word
     go !h Empty       = h
     go  h (Cons n ns) = go (combine h (fromIntegral n)) ns
 
-  hash = hashWithSalt 3032525626373534813
+  hash = hashWithSalt ahashSalt
 
 instance B.Binary Node where
 
