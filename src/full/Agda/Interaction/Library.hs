@@ -261,6 +261,7 @@ findProjectConfig root = do
           return conf
         f1:f2:files -> throwError $ LibErrors [] $ singleton $ LibError Nothing $
           SeveralAgdaLibFiles root $ List2 f1 f2 files
+      `catchIO` (\ (_ :: E.IOException) -> do return DefaultProjectConfig)
 
   where
     -- Andreas, 2024-06-26, issue #7331:
