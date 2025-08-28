@@ -61,6 +61,7 @@ import qualified Data.Text as T
 import System.Directory
 import System.FilePath
 import System.Environment
+import System.PosixCompat.Files ( FileStatus, getFileStatus, fileID, deviceID )
 import System.IO.Error ( isPermissionError )
 
 import Agda.Interaction.Library.Base
@@ -238,9 +239,15 @@ findProjectConfig' root = do
     --   operating systems L/.. refers to R.
     upPath :: FilePath -> IO (Maybe FilePath)
     upPath root = do
-      up <- canonicalizePath $ root </> ".."
-      if up == root then return Nothing else return $ Just up
+      stat <- getFileStatus root
+      _upPath root (deviceID stat) (fileID stat)
 
+    _upPath root dev ino = do
+      up <- canonicalizePath $ root </> ".."
+      if up == root then return Nothing else do
+        statUp <- getFileStatus up
+        if deviceID statUp == dev && fileID statUp == ino then
+          return Nothing else return $ Just up
 
 -- | Get project root
 

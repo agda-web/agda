@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wunused-imports #-}
+{-# Language CPP #-}
 
 module Agda.Interaction.AgdaTop
     ( repl
@@ -19,6 +20,11 @@ import Agda.Interaction.Response as R
 import Agda.Interaction.InteractionTop
 import Agda.Interaction.Options
 
+#if defined(wasm32_HOST_ARCH)
+import Agda.Utils.IO                ( catchIO )
+import System.Posix.IO              ( stdInput, setFdOption, FdOption(..) )
+#endif
+
 import Agda.TypeChecking.Monad
 import qualified Agda.TypeChecking.Monad.Benchmark as Bench
 
@@ -27,6 +33,12 @@ import qualified Agda.TypeChecking.Monad.Benchmark as Bench
 -- | 'repl' is a fake ghci interpreter for both the Emacs the JSON frontend
 repl :: InteractionOutputCallback -> String -> TCM () -> TCM ()
 repl callback prompt setup = do
+
+#if defined(wasm32_HOST_ARCH)
+    liftIO $ setFdOption stdInput NonBlockingRead True
+      `catchIO` (\ e -> hPutStrLn stderr $ "Failed to enable nonblocking on stdin: " ++ (show e) ++ "\nThe WASM module might not behave correctly.")
+#endif
+
     liftIO $ do
       hSetBuffering stdout LineBuffering
       hSetBuffering stdin  LineBuffering
