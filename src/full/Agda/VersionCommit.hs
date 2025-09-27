@@ -9,9 +9,7 @@
 
 module Agda.VersionCommit where
 
-#if !defined(wasm32_HOST_ARCH)
 import Development.GitRev
-#endif
 
 import Agda.Version
 
@@ -24,16 +22,11 @@ commitInfo
   | hash == "UNKNOWN" = Nothing
   | otherwise         = Just $ abbrev hash ++ dirty
   where
-#if defined(wasm32_HOST_ARCH)
-    hash = "UNKNOWN"
-    dirty = ""
-#else
     hash = $(gitHash)
 
     -- Check if any tracked files have uncommitted changes
     dirty | $(gitDirtyTracked) = "-dirty"
           | otherwise          = ""
-#endif
 
     -- Abbreviate a commit hash while keeping it unambiguous
     abbrev = take 7
