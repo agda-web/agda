@@ -549,7 +549,7 @@ library
     , uri-encode           >= 1.5.0.7   && < 1.6
     , vector               >= 0.12.1.2  && < 0.14
     , vector-hashtables    >= 0.1.1.1   && < 0.2
-    , zlib                 >= 0.6.2.2   && < 0.8
+    , zstd                 == 0.1.3.0
 
   if arch(wasm32)
     build-depends:
