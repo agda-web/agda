@@ -2,7 +2,7 @@
 
 -- | Functions which give precise syntax highlighting info in JSON format.
 
-module Agda.Interaction.Highlighting.JSON (jsonifyHighlightingInfo) where
+module Agda.Interaction.Highlighting.JSON (jsonifyHighlightingInfo, showAspects) where
 
 import qualified Data.ByteString.Lazy.Char8 as BS
 

@@ -22,6 +22,7 @@ import Agda.Interaction.EmacsTop
 import Agda.Interaction.JSON
 import Agda.Interaction.Response as R
 import Agda.Interaction.Highlighting.JSON
+import Agda.Interaction.Highlighting.Precise (toList)
 
 import Agda.Syntax.Abstract.Pretty
          ( prettyATop )
@@ -41,7 +42,7 @@ import Agda.Syntax.Scope.Base
 import Agda.TypeChecking.Errors
          ( getAllWarningsOfTCErr )
 import Agda.TypeChecking.Monad
-         ( Comparison(..), inTopContext, TCM, TCErr, TCWarning, NamedMeta(..), withInteractionId )
+         ( Comparison(..), inTopContext, TCM, TCErr, TCWarning, NamedMeta(..), withInteractionId, useSession, ModuleToSource, lensModuleToSource )
 import Agda.TypeChecking.Monad.MetaVars
          ( getInteractionRange, getMetaRange, withMetaId )
 import Agda.TypeChecking.Pretty
@@ -57,6 +58,7 @@ import Agda.Syntax.Common.Pretty
          ( Pretty(..), prettyShow )
 import Agda.Utils.Time
          ( CPUTime(..) )
+import Agda.Utils.DocTree  ( renderToTree, treeToTextWithAnn )
 
 import Agda.VersionCommit
 
@@ -311,11 +313,27 @@ instance EncodeTCM DisplayInfo where
     ws <- filterTCWarnings (tcWarnings wes)
     es <- filterTCWarnings (nonFatalErrors wes)
     kind "AllGoalsWarnings"
-      [ "visibleGoals"      #= forM vis (\i -> withInteractionId (B.outputFormId $ OutputForm noRange [] alwaysUnblock i) $ encodeTCM i)
+      [ "visibleGoals"      #= forM vis (\i -> withInteractionId (B.outputFormId $ OutputForm noRange [] alwaysUnblock i) $ encodeTCM' i)
       , "invisibleGoals"    #= forM invis encodeTCM
       , "warnings"          #= encodeTCM ws
       , "errors"            #= encodeTCM es
       ]
+    where
+      encodeTCM' :: OutputConstraint_boot TCErr A.Expr InteractionId -> TCM Value
+      encodeTCM' = \case
+        OfType i a -> encodeOfType i a
+        other -> encodeTCM other
+
+      encodeOfType :: InteractionId -> A.Expr -> TCM Value
+      encodeOfType i a = do
+        (t, rngs) <- encodeExprWithAnn a
+
+        kind "OfType"
+          [ "constraintObj" #= encodeTCM i
+          , "type"          #= encodeTCM t
+          , "typeAnn"       #= encodeTCM rngs
+          ]
+
   encodeTCM (Info_Time time) = kind "Time"
     [ "time"              @= time
     ]
@@ -394,14 +412,7 @@ encodeGoalSpecific ii = go
     [ "computeMode" @= computeMode
     , "expr"        #= B.showComputed computeMode expr
     ]
-  go (Goal_GoalType rewrite goalType entries boundary outputForms) = kind "GoalType"
-    [ "rewrite"     @= rewrite
-    , "typeAux"     @= goalType
-    , "type"        #= prettyTypeOfMeta rewrite ii
-    , "entries"     @= entries
-    , "boundary"    @= map encodePretty boundary
-    , "outputForms" @= map encodePretty outputForms
-    ]
+  go (Goal_GoalType rewrite goalType entries boundary outputForms) = encodeGoalType rewrite goalType entries boundary outputForms
   go (Goal_CurrentGoal rewrite) = kind "CurrentGoal"
     [ "rewrite"     @= rewrite
     , "type"        #= prettyTypeOfMeta rewrite ii
@@ -409,6 +420,22 @@ encodeGoalSpecific ii = go
   go (Goal_InferredType expr) = kind "InferredType"
     [ "expr"        #= prettyATop expr
     ]
+
+  encodeGoalType rewrite goalType entries boundary outputForms = do
+    tp <- B.typeOfMeta rewrite ii
+    (t, rngs) <- case tp of
+      OfType _ e -> encodeExprWithAnn e
+      form       -> ((,[]) <$>) $ (prettyATop form) >>= encodeTCM
+
+    kind "GoalType"
+      [ "rewrite"     @= rewrite
+      , "typeAux"     @= goalType
+      , "type"        @= t
+      , "typeAnn"     @= rngs
+      , "entries"     @= entries
+      , "boundary"    @= map encodePretty boundary
+      , "outputForms" @= map encodePretty outputForms
+      ]
 
 instance EncodeTCM Info_Error where
   encodeTCM :: Info_Error -> TCM Value
@@ -481,6 +508,14 @@ instance EncodeTCM Response where
   encodeTCM (Resp_Mimer ii str) = kind "Mimer"
     [ "solution" @= str
     ]
+
+encodeExprWithAnn :: A.Expr -> TCM (Value, [Value])
+encodeExprWithAnn a = do
+  m2s <- useSession lensModuleToSource
+  (t, rm) <- (treeToTextWithAnn <$>) . (renderToTree <$>) . prettyATop $ a
+  let rngs = map (showAspects m2s) $ toList rm
+  tt <- (encodeTCM <$>) T.unpack t
+  return $ (tt, rngs)
 
 -- | Convert Response to an JSON value for interactive editor frontends.
 jsonifyResponse :: Response -> TCM ByteString
