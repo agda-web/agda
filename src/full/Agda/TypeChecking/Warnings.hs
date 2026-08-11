@@ -12,6 +12,7 @@ module Agda.TypeChecking.Warnings
   , WarningsAndNonFatalErrors, tcWarnings, nonFatalErrors
   , emptyWarningsAndNonFatalErrors, classifyWarnings
   , runPM
+  , runPMDropWarnings
   ) where
 
 import Control.Monad ( forM, unless )
@@ -214,6 +215,13 @@ runPM :: PM a -> TCM a
 runPM m = do
   (res, ws) <- runPMIO m
   mapM_ (warning . ParseWarning) ws
+  case res of
+    Left  e -> throwError (Exception (getRange e) (P.pretty e))
+    Right a -> return a
+
+runPMDropWarnings :: PM a -> TCM a
+runPMDropWarnings m = do
+  (res, _ws) <- runPMIO m
   case res of
     Left  e -> throwError (Exception (getRange e) (P.pretty e))
     Right a -> return a
