@@ -17,6 +17,8 @@ module Agda.Interaction.Imports
   , Source(..)
   , scopeCheckImport
   , parseSource
+  , parseSource'
+  , moduleName
   , typeCheckMain
   , getNonMainInterface
   , getNonMainModuleInfo
@@ -62,6 +64,7 @@ import Agda.Syntax.Common
 import Agda.Syntax.Common.Pretty hiding (Mode)
 import Agda.Syntax.Parser
 import Agda.Syntax.Position
+import Agda.Syntax.Position (RangeFile)
 import Agda.Syntax.Scope.Base
 import Agda.Syntax.TopLevelModuleName
 import Agda.Syntax.Translation.ConcreteToAbstract
@@ -140,8 +143,8 @@ data Source = Source
 
 -- | Parses a source file and prepares the 'Source' record.
 
-parseSource :: SourceFile -> TCM Source
-parseSource sourceFile = Bench.billTo [Bench.Parsing] $ do
+parseSource' :: (RangeFile -> TCM TL.Text) -> SourceFile -> TCM Source
+parseSource' get sourceFile = Bench.billTo [Bench.Parsing] $ do
   -- Issue #7303:
   -- The parser previously used mdo to avoid the duplicate parsing for the
   -- bootstrapping of the TopLevelModuleName in Range.
@@ -162,7 +165,7 @@ parseSource sourceFile = Bench.billTo [Bench.Parsing] $ do
   let rf0 = mkRangeFile f Nothing
   setCurrentRange (beginningOfFile rf0) do
 
-  source <- runPM $ readFilePM rf0
+  source <- get rf0
   let txt = TL.unpack source
 
   -- Bootstrapping: parse the module name.
@@ -184,6 +187,10 @@ parseSource sourceFile = Bench.billTo [Bench.Parsing] $ do
     , srcProjectLibs = libs
     , srcAttributes  = attrs
     }
+
+-- | Parses a source file and prepares the 'Source' record.
+parseSource :: SourceFile -> TCM Source
+parseSource = parseSource' (runPM . readFilePM)
 
 
 -- | Computes the module name of the top-level module in the given file.
